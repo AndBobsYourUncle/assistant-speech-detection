@@ -72,7 +72,7 @@ func (v *voiceImpl) freeAudio() {
 	}
 }
 
-const DefaultQuietTime = time.Millisecond * 100
+const DefaultQuietTime = time.Millisecond * 200
 
 func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
 	in := make([]int16, 8196)
@@ -122,12 +122,12 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
 		}
 
 		// TODO we need a circular buffer here to prepend the first bit detected, or else we miss the first few words
-		if heardSomething {
-			_, err = waveWriter.WriteSample16(in)
-			if err != nil {
-				return nil, err
-			}
+		//if heardSomething {
+		_, err = waveWriter.WriteSample16(in)
+		if err != nil {
+			return nil, err
 		}
+		//}
 
 		flux := vad.Flux(in)
 
