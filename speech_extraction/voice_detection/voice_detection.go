@@ -5,9 +5,6 @@ import (
 	"math"
 )
 
-// Voice Activity Detection (that's what they call it when you detect
-// that someone has started (or stopped) talking).
-
 type vadImpl struct {
 	samples      []complex128
 	fft          []complex128

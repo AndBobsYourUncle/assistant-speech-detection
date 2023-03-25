@@ -1,2 +1,2 @@
 .idea/
-ggml-base.en.bin
+models/*.bin

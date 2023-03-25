@@ -33,8 +33,6 @@ func (v *voiceImpl) Listen() error {
 
 	defer v.freeAudio()
 
-	//fmt.Printf("speak now\n")
-
 	waveFilename, err := v.listenIntoBuffer(DefaultQuietTime)
 	if err != nil {
 		log.Fatal(err)
@@ -43,6 +41,8 @@ func (v *voiceImpl) Listen() error {
 	err = speech_to_text.Process(v.fileSys, v.model, *waveFilename)
 	if err != nil {
 		log.Printf("error running model: %v", err)
+
+		return err
 	}
 
 	v.Listen()
@@ -121,12 +121,13 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
 			return nil, err
 		}
 
-		//if heardSomething {
-		_, err = waveWriter.WriteSample16(in)
-		if err != nil {
-			return nil, err
+		// TODO we need a circular buffer here to prepend the first bit detected, or else we miss the first few words
+		if heardSomething {
+			_, err = waveWriter.WriteSample16(in)
+			if err != nil {
+				return nil, err
+			}
 		}
-		//}
 
 		flux := vad.Flux(in)
 
@@ -143,7 +144,6 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
 					diff := time.Since(quietStart)
 
 					if diff > quietTime {
-						//log.Printf("quiet for %s, stopping", diff)
 						break
 					}
 				}
@@ -156,8 +156,6 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
 		} else {
 			if flux >= lastFlux*1.75 {
 				heardSomething = true
-
-				//log.Printf("heard something, flux: %f", flux)
 			}
 
 			lastFlux = flux
