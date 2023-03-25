@@ -1,6 +1,7 @@
 package speech_extraction
 
 import (
+	"assistant-speech-detection/ring_buffer"
 	"assistant-speech-detection/speech_extraction/voice_detection"
 	"assistant-speech-detection/speech_to_text"
 	"github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
@@ -10,6 +11,11 @@ import (
 	"log"
 	"strconv"
 	"time"
+)
+
+const (
+	quietTimePeriod = time.Millisecond * 200
+	bufferSize      = 8196
 )
 
 type voiceImpl struct {
@@ -33,7 +39,7 @@ func (v *voiceImpl) Listen() error {
 
 	defer v.freeAudio()
 
-	waveFilename, err := v.listenIntoBuffer(DefaultQuietTime)
+	waveFilename, err := v.listenIntoBuffer(quietTimePeriod)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -72,10 +78,8 @@ func (v *voiceImpl) freeAudio() {
 	}
 }
 
-const DefaultQuietTime = time.Millisecond * 200
-
 func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
-	in := make([]int16, 8196)
+	in := make([]int16, bufferSize)
 	stream, err := portaudio.OpenDefaultStream(1, 0, 16000, len(in), in)
 	if err != nil {
 		return nil, err
@@ -115,19 +119,25 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
 
 	defer waveWriter.Close()
 
+	ringBuffer := ring_buffer.NewRingBuffer(bufferSize)
+
 	for {
 		err = stream.Read()
 		if err != nil {
 			return nil, err
 		}
 
-		// TODO we need a circular buffer here to prepend the first bit detected, or else we miss the first few words
-		//if heardSomething {
-		_, err = waveWriter.WriteSample16(in)
-		if err != nil {
-			return nil, err
+		// keep a buffer of the first bit of audio before detection
+		if !heardSomething {
+			ringBuffer.Add(in)
 		}
-		//}
+
+		if heardSomething {
+			_, err = waveWriter.WriteSample16(in)
+			if err != nil {
+				return nil, err
+			}
+		}
 
 		flux := vad.Flux(in)
 
@@ -156,6 +166,12 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
 		} else {
 			if flux >= lastFlux*1.75 {
 				heardSomething = true
+
+				// write the first bit of the buffer to the wav file
+				_, err = waveWriter.WriteSample16(ringBuffer.Read())
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			lastFlux = flux
