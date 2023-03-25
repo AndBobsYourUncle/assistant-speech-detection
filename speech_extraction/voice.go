@@ -72,7 +72,7 @@ func (v *voiceImpl) freeAudio() {
 	}
 }
 
-const DefaultQuietTime = time.Millisecond * 300
+const DefaultQuietTime = time.Millisecond * 100
 
 func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
 	in := make([]int16, 8196)
