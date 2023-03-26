@@ -5,11 +5,9 @@ import (
 	"assistant-speech-detection/speech_extraction/vad"
 	"assistant-speech-detection/speech_to_text"
 	"fmt"
+	"github.com/go-audio/audio"
 	"github.com/gordonklaus/portaudio"
-	"github.com/spf13/afero"
-	"github.com/zenwerk/go-wave"
 	"log"
-	"strconv"
 	"time"
 )
 
@@ -19,13 +17,11 @@ const (
 )
 
 type voiceImpl struct {
-	fileSys      afero.Fs
 	audioRunning bool
 	sttEngine    speech_to_text.Interface
 }
 
 type Config struct {
-	FileSys   afero.Fs
 	STTEngine speech_to_text.Interface
 }
 
@@ -34,16 +30,11 @@ func New(cfg *Config) (Interface, error) {
 		return nil, fmt.Errorf("config is nil")
 	}
 
-	if cfg.FileSys == nil {
-		return nil, fmt.Errorf("fileSys is nil")
-	}
-
 	if cfg.STTEngine == nil {
 		return nil, fmt.Errorf("sttEngine is nil")
 	}
 
 	return &voiceImpl{
-		fileSys:   cfg.FileSys,
 		sttEngine: cfg.STTEngine,
 	}, nil
 }
@@ -70,6 +61,17 @@ func (v *voiceImpl) listenLoop() error {
 		if err != nil {
 			log.Fatalf("error listening: %v", err)
 		}
+
+		//// IntBuffer is an audio buffer with its PCM data formatted as int.
+		//type IntBuffer struct {
+		//	// Format is the representation of the underlying data format
+		//	Format *Format
+		//	// Data is the buffer PCM data as ints
+		//	Data []int
+		//	// SourceBitDepth helps us know if the source was encoded on
+		//	// 8, 16, 24, 32, 64 bits.
+		//	SourceBitDepth int
+		//}
 
 		err = v.sttEngine.Process(waveFilename)
 		if err != nil {
@@ -104,18 +106,18 @@ func (v *voiceImpl) freeAudio() {
 	}
 }
 
-func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (string, error) {
+func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (audio.Buffer, error) {
 	in := make([]int16, bufferSize)
 	stream, err := portaudio.OpenDefaultStream(1, 0, 16000, len(in), in)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	defer stream.Close()
 
 	err = stream.Start()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	var (
@@ -127,30 +129,14 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (string, error) {
 
 	vad := vad.New(len(in))
 
-	waveFilename := "test" + strconv.Itoa(int(time.Now().Unix())) + ".wav"
-
-	waveFile, err := v.fileSys.Create(waveFilename)
-
-	param := wave.WriterParam{
-		Out:           waveFile,
-		Channel:       1,
-		SampleRate:    16000,
-		BitsPerSample: 16,
-	}
-
-	waveWriter, err := wave.NewWriter(param)
-	if err != nil {
-		return "", err
-	}
-
-	defer waveWriter.Close()
-
 	ringBuffer := ring_buffer.New(bufferSize)
+
+	intBuffer := make([]int, 0)
 
 	for {
 		err = stream.Read()
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		// keep a buffer of the first bit of audio before detection
@@ -159,9 +145,8 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (string, error) {
 		}
 
 		if heardSomething {
-			_, err = waveWriter.WriteSample16(in)
-			if err != nil {
-				return "", err
+			for _, sample := range in {
+				intBuffer = append(intBuffer, int(sample))
 			}
 		}
 
@@ -193,10 +178,9 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (string, error) {
 			if flux >= lastFlux*1.75 {
 				heardSomething = true
 
-				// write the first bit of the buffer to the wav file
-				_, err = waveWriter.WriteSample16(ringBuffer.Read())
-				if err != nil {
-					return "", err
+				// write the first bit of the buffer to the wav buffer
+				for _, sample := range in {
+					intBuffer = append(intBuffer, int(sample))
 				}
 			}
 
@@ -206,8 +190,17 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (string, error) {
 
 	err = stream.Stop()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return waveFilename, nil
+	wavBuffer := &audio.IntBuffer{
+		Format: &audio.Format{
+			NumChannels: 1,
+			SampleRate:  16000,
+		},
+		Data:           intBuffer,
+		SourceBitDepth: 16,
+	}
+
+	return wavBuffer, nil
 }

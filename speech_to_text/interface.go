@@ -1,5 +1,7 @@
 package speech_to_text
 
+import "github.com/go-audio/audio"
+
 type Interface interface {
-	Process(waveFilename string) error
+	Process(wavBuffer audio.Buffer) error
 }
