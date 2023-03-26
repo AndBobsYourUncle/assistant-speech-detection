@@ -56,27 +56,36 @@ func (v *voiceImpl) Listen() error {
 
 	defer v.freeAudio()
 
-	waveFilename, err := v.listenIntoBuffer(quietTimePeriod)
+	err = v.listenLoop()
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = v.sttEngine.Process(waveFilename)
-	if err != nil {
-		log.Printf("error running model: %v", err)
-
 		return err
 	}
 
-	v.Listen()
-
 	return nil
+}
+
+func (v *voiceImpl) listenLoop() error {
+	for {
+		waveFilename, err := v.listenIntoBuffer(quietTimePeriod)
+		if err != nil {
+			log.Fatalf("error listening: %v", err)
+		}
+
+		err = v.sttEngine.Process(waveFilename)
+		if err != nil {
+			log.Printf("error running model: %v", err)
+
+			return err
+		}
+	}
 }
 
 func (v *voiceImpl) initAudio() error {
 	if !v.audioRunning {
 		err := portaudio.Initialize()
 		if err != nil {
+			log.Printf("error initializing audio: %v", err)
+
 			return err
 		}
 
