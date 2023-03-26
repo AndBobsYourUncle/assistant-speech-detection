@@ -57,12 +57,12 @@ func (v *voiceImpl) Listen() error {
 
 func (v *voiceImpl) listenLoop() error {
 	for {
-		waveFilename, err := v.listenIntoBuffer(quietTimePeriod)
+		waveBuffer, err := v.listenIntoBuffer(quietTimePeriod)
 		if err != nil {
 			log.Fatalf("error listening: %v", err)
 		}
 
-		segments, err := v.sttEngine.Process(waveFilename)
+		segments, err := v.sttEngine.Process(waveBuffer)
 		if err != nil {
 			log.Printf("error running model: %v", err)
 
