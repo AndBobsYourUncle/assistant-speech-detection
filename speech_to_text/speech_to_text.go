@@ -2,12 +2,9 @@ package speech_to_text
 
 import (
 	"fmt"
+	"github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 	"github.com/go-audio/audio"
 	"io"
-	"log"
-	"time"
-
-	"github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
 type sttImpl struct {
@@ -32,11 +29,11 @@ func New(cfg *Config) (Interface, error) {
 	}, nil
 }
 
-func (stt *sttImpl) Process(wavBuffer audio.Buffer) error {
+func (stt *sttImpl) Process(wavBuffer audio.Buffer) ([]whisper.Segment, error) {
 	// Create processing context
 	context, err := stt.model.NewContext()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	data := wavBuffer.AsFloat32Buffer().Data
@@ -46,23 +43,29 @@ func (stt *sttImpl) Process(wavBuffer audio.Buffer) error {
 
 	err = context.Process(data, cb)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Print out the results
-	return outputSegments(context)
+	segments, err := outputSegments(context)
+	if err != nil {
+		return nil, err
+	}
+
+	return segments, nil
 }
 
 // Output text to terminal
-func outputSegments(context whisper.Context) error {
+func outputSegments(context whisper.Context) ([]whisper.Segment, error) {
 	seenText := make(map[string]bool)
+
+	segments := make([]whisper.Segment, 0)
 
 	for {
 		segment, err := context.NextSegment()
 		if err == io.EOF {
-			return nil
+			return segments, nil
 		} else if err != nil {
-			return err
+			return nil, err
 		}
 
 		// if segment text starts or ends with a parenthesis or a bracket, then ignore it
@@ -78,7 +81,6 @@ func outputSegments(context whisper.Context) error {
 			seenText[segment.Text] = true
 		}
 
-		log.Printf("[%6s->%6s] %s\n",
-			segment.Start.Truncate(time.Millisecond), segment.End.Truncate(time.Millisecond), segment.Text)
+		segments = append(segments, segment)
 	}
 }

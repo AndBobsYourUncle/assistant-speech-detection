@@ -62,22 +62,16 @@ func (v *voiceImpl) listenLoop() error {
 			log.Fatalf("error listening: %v", err)
 		}
 
-		//// IntBuffer is an audio buffer with its PCM data formatted as int.
-		//type IntBuffer struct {
-		//	// Format is the representation of the underlying data format
-		//	Format *Format
-		//	// Data is the buffer PCM data as ints
-		//	Data []int
-		//	// SourceBitDepth helps us know if the source was encoded on
-		//	// 8, 16, 24, 32, 64 bits.
-		//	SourceBitDepth int
-		//}
-
-		err = v.sttEngine.Process(waveFilename)
+		segments, err := v.sttEngine.Process(waveFilename)
 		if err != nil {
 			log.Printf("error running model: %v", err)
 
 			return err
+		}
+
+		for _, segment := range segments {
+			log.Printf("[%6s->%6s] %s\n",
+				segment.Start.Truncate(time.Millisecond), segment.End.Truncate(time.Millisecond), segment.Text)
 		}
 	}
 }
