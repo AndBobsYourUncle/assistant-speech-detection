@@ -4,7 +4,7 @@ import "testing"
 
 func TestRingBuffer_Add(t *testing.T) {
 	t.Run("fill ring buffer with digits until it loops, and test that it works", func(t *testing.T) {
-		ringBuffer := NewRingBuffer(10)
+		ringBuffer := New(10)
 
 		for i := 0; i < 20; i++ {
 			ringBuffer.Add([]int16{int16(i)})

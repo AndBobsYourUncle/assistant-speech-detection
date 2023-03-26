@@ -136,7 +136,7 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (string, error) {
 
 	defer waveWriter.Close()
 
-	ringBuffer := ring_buffer.NewRingBuffer(bufferSize)
+	ringBuffer := ring_buffer.New(bufferSize)
 
 	for {
 		err = stream.Read()

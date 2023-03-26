@@ -5,7 +5,7 @@ type bufImpl struct {
 	head   int
 }
 
-func NewRingBuffer(size int) *bufImpl {
+func New(size int) *bufImpl {
 	return &bufImpl{
 		buffer: make([]int16, size),
 		head:   0,
