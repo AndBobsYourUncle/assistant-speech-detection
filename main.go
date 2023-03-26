@@ -24,7 +24,7 @@ func main() {
 	}
 
 	defer model.Close()
-	
+
 	sstEngine, err := speech_to_text.New(&speech_to_text.Config{
 		Model: model,
 	})
