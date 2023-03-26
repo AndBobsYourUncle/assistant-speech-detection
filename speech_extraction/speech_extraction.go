@@ -2,7 +2,7 @@ package speech_extraction
 
 import (
 	"assistant-speech-detection/ring_buffer"
-	"assistant-speech-detection/speech_extraction/voice_detection"
+	"assistant-speech-detection/speech_extraction/vad"
 	"assistant-speech-detection/speech_to_text"
 	"fmt"
 	"github.com/gordonklaus/portaudio"
@@ -116,7 +116,7 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (string, error) {
 		lastFlux       float64
 	)
 
-	vad := voice_detection.NewVAD(len(in))
+	vad := vad.New(len(in))
 
 	waveFilename := "test" + strconv.Itoa(int(time.Now().Unix())) + ".wav"
 

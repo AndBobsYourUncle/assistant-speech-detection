@@ -14,7 +14,7 @@ func main() {
 
 	flag.Parse()
 
-	if *modelFlag == "" {
+	if modelFlag == nil || *modelFlag == "" {
 		log.Fatalf("error: model file not specified")
 	}
 
@@ -26,6 +26,7 @@ func main() {
 
 	defer model.Close()
 
+	// temporary file system for housing WAV files for processing
 	tempFS := afero.NewMemMapFs()
 
 	sstEngine, err := speech_to_text.New(&speech_to_text.Config{

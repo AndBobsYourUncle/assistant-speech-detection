@@ -1,4 +1,4 @@
-package voice_detection
+package vad
 
 import (
 	"github.com/mjibson/go-dsp/fft"
@@ -12,7 +12,7 @@ type vadImpl struct {
 	lastSpectrum []float64
 }
 
-func NewVAD(width int) *vadImpl {
+func New(width int) *vadImpl {
 	return &vadImpl{
 		samples:      make([]complex128, width),
 		spectrum:     make([]float64, width/2+1),
