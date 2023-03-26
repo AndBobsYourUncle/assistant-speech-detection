@@ -4,7 +4,7 @@ import (
 	"assistant-speech-detection/ring_buffer"
 	"assistant-speech-detection/speech_extraction/voice_detection"
 	"assistant-speech-detection/speech_to_text"
-	"github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
+	"fmt"
 	"github.com/gordonklaus/portaudio"
 	"github.com/spf13/afero"
 	"github.com/zenwerk/go-wave"
@@ -21,14 +21,31 @@ const (
 type voiceImpl struct {
 	fileSys      afero.Fs
 	audioRunning bool
-	model        whisper.Model
+	sttEngine    speech_to_text.Interface
 }
 
-func NewVoice(fileSys afero.Fs, model whisper.Model) *voiceImpl {
-	return &voiceImpl{
-		fileSys: fileSys,
-		model:   model,
+type Config struct {
+	FileSys   afero.Fs
+	STTEngine speech_to_text.Interface
+}
+
+func New(cfg *Config) (Interface, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
 	}
+
+	if cfg.FileSys == nil {
+		return nil, fmt.Errorf("fileSys is nil")
+	}
+
+	if cfg.STTEngine == nil {
+		return nil, fmt.Errorf("sttEngine is nil")
+	}
+
+	return &voiceImpl{
+		fileSys:   cfg.FileSys,
+		sttEngine: cfg.STTEngine,
+	}, nil
 }
 
 func (v *voiceImpl) Listen() error {
@@ -44,7 +61,7 @@ func (v *voiceImpl) Listen() error {
 		log.Fatal(err)
 	}
 
-	err = speech_to_text.Process(v.fileSys, v.model, *waveFilename)
+	err = v.sttEngine.Process(waveFilename)
 	if err != nil {
 		log.Printf("error running model: %v", err)
 
@@ -78,18 +95,18 @@ func (v *voiceImpl) freeAudio() {
 	}
 }
 
-func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
+func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (string, error) {
 	in := make([]int16, bufferSize)
 	stream, err := portaudio.OpenDefaultStream(1, 0, 16000, len(in), in)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	defer stream.Close()
 
 	err = stream.Start()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	var (
@@ -114,7 +131,7 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
 
 	waveWriter, err := wave.NewWriter(param)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	defer waveWriter.Close()
@@ -124,7 +141,7 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
 	for {
 		err = stream.Read()
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 
 		// keep a buffer of the first bit of audio before detection
@@ -135,7 +152,7 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
 		if heardSomething {
 			_, err = waveWriter.WriteSample16(in)
 			if err != nil {
-				return nil, err
+				return "", err
 			}
 		}
 
@@ -170,7 +187,7 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
 				// write the first bit of the buffer to the wav file
 				_, err = waveWriter.WriteSample16(ringBuffer.Read())
 				if err != nil {
-					return nil, err
+					return "", err
 				}
 			}
 
@@ -180,8 +197,8 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration) (*string, error) {
 
 	err = stream.Stop()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return &waveFilename, nil
+	return waveFilename, nil
 }

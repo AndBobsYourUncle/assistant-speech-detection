@@ -2,6 +2,7 @@ package main
 
 import (
 	"assistant-speech-detection/speech_extraction"
+	"assistant-speech-detection/speech_to_text"
 	"flag"
 	"github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 	"github.com/spf13/afero"
@@ -27,7 +28,21 @@ func main() {
 
 	tempFS := afero.NewMemMapFs()
 
-	detect := speech_extraction.NewVoice(tempFS, model)
+	sstEngine, err := speech_to_text.New(&speech_to_text.Config{
+		FileSys: tempFS,
+		Model:   model,
+	})
+	if err != nil {
+		log.Fatalf("error with speech_to_text.New: %v", err)
+	}
+
+	detect, err := speech_extraction.New(&speech_extraction.Config{
+		FileSys:   tempFS,
+		STTEngine: sstEngine,
+	})
+	if err != nil {
+		log.Fatalf("error with speech_extraction.New: %v", err)
+	}
 
 	err = detect.Listen()
 	if err != nil {

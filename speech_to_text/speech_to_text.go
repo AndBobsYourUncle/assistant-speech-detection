@@ -5,24 +5,52 @@ import (
 	"github.com/spf13/afero"
 	"io"
 	"log"
-	"os"
 	"time"
 
 	"github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 	"github.com/go-audio/wav"
 )
 
-func Process(fileSys afero.Fs, model whisper.Model, path string) error {
+type sttImpl struct {
+	fileSys afero.Fs
+	model   whisper.Model
+}
+
+type Config struct {
+	FileSys afero.Fs
+	Model   whisper.Model
+}
+
+func New(cfg *Config) (Interface, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+
+	if cfg.FileSys == nil {
+		return nil, fmt.Errorf("fileSys is nil")
+	}
+
+	if cfg.Model == nil {
+		return nil, fmt.Errorf("model is nil")
+	}
+
+	return &sttImpl{
+		fileSys: cfg.FileSys,
+		model:   cfg.Model,
+	}, nil
+}
+
+func (stt *sttImpl) Process(wavFilePath string) error {
 	var data []float32
 
 	// Create processing context
-	context, err := model.NewContext()
+	context, err := stt.model.NewContext()
 	if err != nil {
 		return err
 	}
 
 	// Open the file
-	fh, err := fileSys.Open(path)
+	fh, err := stt.fileSys.Open(wavFilePath)
 	if err != nil {
 		return err
 	}
@@ -50,11 +78,11 @@ func Process(fileSys afero.Fs, model whisper.Model, path string) error {
 	}
 
 	// Print out the results
-	return Output(os.Stdout, context)
+	return outputSegments(context)
 }
 
 // Output text to terminal
-func Output(w io.Writer, context whisper.Context) error {
+func outputSegments(context whisper.Context) error {
 	seenText := make(map[string]bool)
 
 	for {
