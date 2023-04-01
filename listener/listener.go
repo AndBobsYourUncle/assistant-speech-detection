@@ -99,7 +99,9 @@ func (v *voiceImpl) ListenLoop() error {
 
 	log.Printf("chosen device: %+v\n", selectedDevice.Name)
 
-	p := portaudio.HighLatencyParameters(selectedDevice, nil)
+	log.Printf("sample rate: %d\n", selectedDevice.DefaultSampleRate)
+
+	p := portaudio.LowLatencyParameters(selectedDevice, nil)
 	p.Input.Channels = 1
 	p.Output.Channels = 0
 	p.SampleRate = 16000
