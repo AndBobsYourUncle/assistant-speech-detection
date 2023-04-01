@@ -101,8 +101,6 @@ func (v *voiceImpl) ListenForCommand() {
 
 func (v *voiceImpl) listenLoop() error {
 	for {
-		log.Printf("speak now\n")
-
 		waveBuffer, err := v.listenIntoBuffer(quietTimePeriod, 0)
 		if err != nil {
 			log.Fatalf("error listening: %v", err)
