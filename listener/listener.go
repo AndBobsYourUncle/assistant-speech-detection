@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/signal"
 	"reflect"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -116,6 +117,15 @@ func (v *voiceImpl) ListenLoop() error {
 		log.Printf("device %d: %s\n", i, name)
 	}
 
+	deviceID := 0
+
+	if v.deviceID != "" {
+		deviceID, err = strconv.Atoi(v.deviceID)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Specify the configuration for our default recording device
 	spec := sdl.AudioSpec{
 		Freq:     DefaultFrequency,
@@ -126,7 +136,7 @@ func (v *voiceImpl) ListenLoop() error {
 	}
 
 	// Open default recording device
-	defaultRecordingDeviceName := sdl.GetAudioDeviceName(1, true)
+	defaultRecordingDeviceName := sdl.GetAudioDeviceName(deviceID, true)
 	if dev, err = sdl.OpenAudioDevice(defaultRecordingDeviceName, true, &spec, nil, 0); err != nil {
 		return err
 	}
