@@ -12,7 +12,6 @@ import (
 	"assistant-speech-detection/speech_to_text"
 	"fmt"
 	"github.com/go-audio/audio"
-	"github.com/gordonklaus/portaudio"
 	"github.com/veandco/go-sdl2/sdl"
 	"log"
 	"os"
@@ -70,7 +69,6 @@ type voiceImpl struct {
 	triggeredAction ListenAction
 	interrupt       bool
 	inBuffer        []int16
-	stream          *portaudio.Stream
 	audioDeviceID   sdl.AudioDeviceID
 	exitGracefully  bool
 }
