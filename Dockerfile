@@ -31,7 +31,7 @@ WORKDIR /root/assistant_speech_detection
 
 RUN bash ./models/download-model.sh base.en && bash ./models/download-model.sh tiny.en
 
-RUN go build
+#RUN go build
 
 RUN chmod +x entrypoint.sh
 
