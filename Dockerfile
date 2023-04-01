@@ -17,9 +17,6 @@ RUN apt-get update && \
     update-ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/local.conf
-RUN ldconfig
-
 WORKDIR /tmp
 
 RUN git clone https://github.com/ggerganov/whisper.cpp && \
@@ -29,6 +26,9 @@ RUN git clone https://github.com/ggerganov/whisper.cpp && \
     make install && \
     cd ../ && \
     rm -r whisper.cpp
+
+RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/local.conf
+RUN ldconfig
 
 COPY . /root/assistant_speech_detection
 
