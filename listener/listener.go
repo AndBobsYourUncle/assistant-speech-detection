@@ -26,7 +26,6 @@ import (
 
 const (
 	quietTimePeriod = time.Millisecond * 200
-	bufferSize      = 8196
 )
 
 type ListenAction string
@@ -38,10 +37,10 @@ const (
 )
 
 const (
-	DefaultFrequency = 16000
-	DefaultFormat    = sdl.AUDIO_S16
-	DefaultChannels  = 1
-	DefaultSamples   = 8196
+	defaultFrequency = 16000
+	defaultFormat    = sdl.AUDIO_S16
+	defaultChannels  = 1
+	defaultSamples   = 8196
 )
 
 var (
@@ -92,7 +91,7 @@ func New(cfg *Config) (Interface, error) {
 		deviceID:        cfg.DeviceID,
 		sttEngine:       cfg.STTEngine,
 		triggeredAction: ListenActionWake,
-		inBuffer:        make([]int16, bufferSize),
+		inBuffer:        make([]int16, defaultSamples),
 	}, nil
 }
 
@@ -128,10 +127,10 @@ func (v *voiceImpl) ListenLoop() error {
 
 	// Specify the configuration for our default recording device
 	spec := sdl.AudioSpec{
-		Freq:     DefaultFrequency,
-		Format:   DefaultFormat,
-		Channels: DefaultChannels,
-		Samples:  DefaultSamples,
+		Freq:     defaultFrequency,
+		Format:   defaultFormat,
+		Channels: defaultChannels,
+		Samples:  defaultSamples,
 		Callback: sdl.AudioCallback(C.OnAudio),
 	}
 
@@ -279,7 +278,7 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration, maxTime time.Durat
 
 	vad := voice_activity_detection.New(len(v.inBuffer))
 
-	ringBuffer := ring_buffer.New(bufferSize)
+	ringBuffer := ring_buffer.New(defaultSamples)
 
 	intBuffer := make([]int, 0)
 
