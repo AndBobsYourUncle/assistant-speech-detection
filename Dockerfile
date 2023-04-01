@@ -33,6 +33,6 @@ RUN bash ./models/download-model.sh base.en && bash ./models/download-model.sh t
 
 #RUN go build
 
-RUN chmod +x entrypoint.sh
+#RUN chmod +x entrypoint.sh
 
-CMD [ "/bin/bash", "-c", "/root/speech_commands/entrypoint.sh" ]
+#CMD [ "/bin/bash", "-c", "/root/speech_commands/entrypoint.sh" ]
