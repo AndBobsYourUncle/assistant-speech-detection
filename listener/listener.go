@@ -1,7 +1,7 @@
 package listener
 
 import (
-	"assistant-speech-detection/listener/vad"
+	"assistant-speech-detection/listener/voice_activity_detection"
 	"assistant-speech-detection/ring_buffer"
 	"assistant-speech-detection/speech_to_text"
 	"fmt"
@@ -30,6 +30,8 @@ type voiceImpl struct {
 	sttEngine       speech_to_text.Interface
 	triggeredAction ListenAction
 	interrupt       bool
+	inBuffer        []int16
+	stream          *portaudio.Stream
 }
 
 type Config struct {
@@ -48,6 +50,7 @@ func New(cfg *Config) (Interface, error) {
 	return &voiceImpl{
 		sttEngine:       cfg.STTEngine,
 		triggeredAction: ListenActionWake,
+		inBuffer:        make([]int16, bufferSize),
 	}, nil
 }
 
@@ -58,6 +61,22 @@ func (v *voiceImpl) ListenLoop() error {
 	}
 
 	defer v.freeAudio()
+
+	stream, err := portaudio.OpenDefaultStream(1, 0, 16000, len(v.inBuffer), v.inBuffer)
+	if err != nil {
+		return err
+	}
+
+	v.stream = stream
+
+	err = stream.Start()
+	if err != nil {
+		return err
+	}
+
+	defer stream.Stop()
+
+	defer stream.Close()
 
 	log.Printf("starting to listen\n")
 
@@ -187,19 +206,6 @@ func (v *voiceImpl) freeAudio() {
 }
 
 func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration, maxTime time.Duration) (audio.Buffer, error) {
-	in := make([]int16, bufferSize)
-	stream, err := portaudio.OpenDefaultStream(1, 0, 16000, len(in), in)
-	if err != nil {
-		return nil, err
-	}
-
-	defer stream.Close()
-
-	err = stream.Start()
-	if err != nil {
-		return nil, err
-	}
-
 	var (
 		heardSomething bool
 		quiet          bool
@@ -207,7 +213,7 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration, maxTime time.Durat
 		lastFlux       float64
 	)
 
-	vad := vad.New(len(in))
+	vad := voice_activity_detection.New(len(v.inBuffer))
 
 	ringBuffer := ring_buffer.New(bufferSize)
 
@@ -230,14 +236,14 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration, maxTime time.Durat
 			}, nil
 		}
 
-		err = stream.Read()
+		err := v.stream.Read()
 		if err != nil {
 			return nil, err
 		}
 
 		// keep a buffer of the first bit of audio before detection
 		if !heardSomething {
-			ringBuffer.Add(in)
+			ringBuffer.Add(v.inBuffer)
 		}
 
 		if heardSomething {
@@ -245,7 +251,7 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration, maxTime time.Durat
 				startTime = time.Now()
 			}
 
-			for _, sample := range in {
+			for _, sample := range v.inBuffer {
 				intBuffer = append(intBuffer, int(sample))
 			}
 
@@ -256,7 +262,7 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration, maxTime time.Durat
 			}
 		}
 
-		flux := vad.Flux(in)
+		flux := vad.Flux(v.inBuffer)
 
 		if lastFlux == 0 {
 			lastFlux = flux
@@ -285,18 +291,13 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration, maxTime time.Durat
 				heardSomething = true
 
 				// write the first bit of the buffer to the wav buffer
-				for _, sample := range in {
+				for _, sample := range v.inBuffer {
 					intBuffer = append(intBuffer, int(sample))
 				}
 			}
 
 			lastFlux = flux
 		}
-	}
-
-	err = stream.Stop()
-	if err != nil {
-		return nil, err
 	}
 
 	wavBuffer := &audio.IntBuffer{
