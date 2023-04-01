@@ -1,7 +1,7 @@
 package main
 
 import (
-	"assistant-speech-detection/speech_extraction"
+	"assistant-speech-detection/listener"
 	"assistant-speech-detection/speech_to_text"
 	"flag"
 	"github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
@@ -32,11 +32,11 @@ func main() {
 		log.Fatalf("error with speech_to_text.New: %v", err)
 	}
 
-	detect, err := speech_extraction.New(&speech_extraction.Config{
+	detect, err := listener.New(&listener.Config{
 		STTEngine: sstEngine,
 	})
 	if err != nil {
-		log.Fatalf("error with speech_extraction.New: %v", err)
+		log.Fatalf("error with listener.New: %v", err)
 	}
 
 	err = detect.ListenLoop()

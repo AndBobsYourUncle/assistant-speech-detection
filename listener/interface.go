@@ -1,4 +1,4 @@
-package speech_extraction
+package listener
 
 type Interface interface {
 	ListenLoop() error

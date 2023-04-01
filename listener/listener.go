@@ -1,8 +1,8 @@
-package speech_extraction
+package listener
 
 import (
+	"assistant-speech-detection/listener/vad"
 	"assistant-speech-detection/ring_buffer"
-	"assistant-speech-detection/speech_extraction/vad"
 	"assistant-speech-detection/speech_to_text"
 	"fmt"
 	"github.com/go-audio/audio"
