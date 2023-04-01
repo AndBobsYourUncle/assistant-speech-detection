@@ -29,7 +29,7 @@ COPY . /root/assistant_speech_detection
 
 WORKDIR /root/assistant_speech_detection
 
-RUN bash ./models/download-ggml-model.sh base.en && bash ./models/download-ggml-model.sh tiny.en
+RUN bash ./models/download-model.sh base.en && bash ./models/download-model.sh tiny.en
 
 RUN go build
 
