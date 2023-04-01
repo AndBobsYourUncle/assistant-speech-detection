@@ -8,6 +8,7 @@ import (
 	"github.com/go-audio/audio"
 	"github.com/gordonklaus/portaudio"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -26,6 +27,7 @@ const (
 )
 
 type voiceImpl struct {
+	deviceID        string
 	audioRunning    bool
 	sttEngine       speech_to_text.Interface
 	triggeredAction ListenAction
@@ -35,6 +37,7 @@ type voiceImpl struct {
 }
 
 type Config struct {
+	DeviceID  string
 	STTEngine speech_to_text.Interface
 }
 
@@ -48,6 +51,7 @@ func New(cfg *Config) (Interface, error) {
 	}
 
 	return &voiceImpl{
+		deviceID:        cfg.DeviceID,
 		sttEngine:       cfg.STTEngine,
 		triggeredAction: ListenActionWake,
 		inBuffer:        make([]int16, bufferSize),
@@ -73,16 +77,29 @@ func (v *voiceImpl) ListenLoop() error {
 		}
 	}
 
-	defaultDevice, err := portaudio.DefaultInputDevice()
+	selectedDevice, err := portaudio.DefaultInputDevice()
 	if err != nil {
 		return err
 	}
 
-	log.Printf("default device: %+v\n", defaultDevice.Name)
+	log.Printf("default device: %+v\n", selectedDevice.Name)
 
-	log.Printf("chosen device: %+v\n", defaultDevice.Name)
+	if v.deviceID != "" {
+		deviceID, convErr := strconv.Atoi(v.deviceID)
+		if convErr != nil {
+			return convErr
+		}
 
-	p := portaudio.LowLatencyParameters(defaultDevice, nil)
+		if deviceID >= len(devices) {
+			return fmt.Errorf("invalid device id")
+		}
+
+		selectedDevice = devices[deviceID]
+	}
+
+	log.Printf("chosen device: %+v\n", selectedDevice.Name)
+
+	p := portaudio.LowLatencyParameters(selectedDevice, nil)
 	p.Input.Channels = 1
 	p.Output.Channels = 0
 	p.SampleRate = 16000

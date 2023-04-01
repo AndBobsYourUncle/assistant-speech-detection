@@ -10,11 +10,18 @@ import (
 
 func main() {
 	modelFlag := flag.String("m", "", "model file for whisper")
+	deviceFlag := flag.String("d", "", "device id to use")
 
 	flag.Parse()
 
 	if modelFlag == nil || *modelFlag == "" {
 		log.Fatalf("error: model file not specified")
+	}
+
+	deviceIDString := ""
+
+	if deviceFlag != nil {
+		deviceIDString = *deviceFlag
 	}
 
 	// Load model
@@ -33,6 +40,7 @@ func main() {
 	}
 
 	detect, err := listener.New(&listener.Config{
+		DeviceID:  deviceIDString,
 		STTEngine: sstEngine,
 	})
 	if err != nil {

@@ -10,6 +10,8 @@ RUN apt-get update && \
         ca-certificates \
         libsdl2-dev \
         libopenblas-dev \
+        libportaudio2 \
+        portaudio19-dev \
         golang-go && \
     apt-get clean && \
     update-ca-certificates && \
