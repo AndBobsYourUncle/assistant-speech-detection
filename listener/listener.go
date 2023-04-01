@@ -219,6 +219,7 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration, maxTime time.Durat
 		if v.interrupt {
 			v.interrupt = false
 
+			// interrupt the current listening loop, return empty buffer
 			return &audio.IntBuffer{
 				Format: &audio.Format{
 					NumChannels: 1,
