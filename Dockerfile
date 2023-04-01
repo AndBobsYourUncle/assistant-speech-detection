@@ -11,7 +11,6 @@ RUN apt-get update && \
         libsdl2-dev \
         libopenblas-dev \
         libsdl2-dev \
-        portaudio19-dev \
         golang-go && \
     apt-get clean && \
     update-ca-certificates && \
