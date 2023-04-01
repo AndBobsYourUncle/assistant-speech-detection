@@ -62,7 +62,33 @@ func (v *voiceImpl) ListenLoop() error {
 
 	defer v.freeAudio()
 
-	stream, err := portaudio.OpenDefaultStream(1, 0, 16000, len(v.inBuffer), v.inBuffer)
+	devices, err := portaudio.Devices()
+	if err != nil {
+		return err
+	}
+
+	for idx, device := range devices {
+		if device.MaxInputChannels > 0 {
+			log.Printf("device %d: %+v\n", idx, device.Name)
+		}
+	}
+
+	defaultDevice, err := portaudio.DefaultInputDevice()
+	if err != nil {
+		return err
+	}
+
+	log.Printf("default device: %+v\n", defaultDevice.Name)
+
+	log.Printf("chosen device: %+v\n", defaultDevice.Name)
+
+	p := portaudio.LowLatencyParameters(defaultDevice, nil)
+	p.Input.Channels = 1
+	p.Output.Channels = 0
+	p.SampleRate = 16000
+	p.FramesPerBuffer = len(v.inBuffer)
+
+	stream, err := portaudio.OpenStream(p, v.inBuffer)
 	if err != nil {
 		return err
 	}
