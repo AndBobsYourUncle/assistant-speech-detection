@@ -1,5 +1,11 @@
 package listener
 
+/*
+typedef unsigned char Uint8;
+void OnAudio(void *userdata, Uint8 *stream, int length);
+*/
+import "C"
+
 import (
 	"assistant-speech-detection/listener/voice_activity_detection"
 	"assistant-speech-detection/ring_buffer"
@@ -7,10 +13,15 @@ import (
 	"fmt"
 	"github.com/go-audio/audio"
 	"github.com/gordonklaus/portaudio"
+	"github.com/veandco/go-sdl2/sdl"
 	"log"
-	"strconv"
+	"os"
+	"os/signal"
+	"reflect"
 	"strings"
+	"syscall"
 	"time"
+	"unsafe"
 )
 
 const (
@@ -26,6 +37,32 @@ const (
 	ListenActionCommand ListenAction = "command"
 )
 
+const (
+	DefaultFrequency = 16000
+	DefaultFormat    = sdl.AUDIO_S16
+	DefaultChannels  = 1
+	DefaultSamples   = 8196
+)
+
+var (
+	audioC = make(chan []int16, 1)
+)
+
+//export OnAudio
+func OnAudio(userdata unsafe.Pointer, _stream *C.Uint8, _length C.int) {
+	// We need to cast the stream from C uint8 array into Go int16 slice
+	length := int(_length) / 2                                                                      // Divide by 2 because a single int16 consists of two uint8
+	header := reflect.SliceHeader{Data: uintptr(unsafe.Pointer(_stream)), Len: length, Cap: length} // Build the slice header for our int16 slice
+	buf := *(*[]int16)(unsafe.Pointer(&header))                                                     // Use the slice header as int16 slice
+
+	// Copy the audio samples into temporary buffer
+	audioSamples := make([]int16, length)
+	copy(audioSamples, buf)
+
+	// Send the temporary buffer to our main function via our Go channel
+	audioC <- audioSamples
+}
+
 type voiceImpl struct {
 	deviceID        string
 	audioRunning    bool
@@ -34,6 +71,8 @@ type voiceImpl struct {
 	interrupt       bool
 	inBuffer        []int16
 	stream          *portaudio.Stream
+	audioDeviceID   sdl.AudioDeviceID
+	exitGracefully  bool
 }
 
 type Config struct {
@@ -59,73 +98,53 @@ func New(cfg *Config) (Interface, error) {
 }
 
 func (v *voiceImpl) ListenLoop() error {
-	err := v.initAudio()
+	var dev sdl.AudioDeviceID
+
+	// Initialize SDL2
+	err := sdl.Init(sdl.INIT_AUDIO)
 	if err != nil {
 		return err
 	}
 
-	defer v.freeAudio()
+	defer sdl.Quit()
 
-	devices, err := portaudio.Devices()
-	if err != nil {
+	numDevices := sdl.GetNumAudioDevices(true)
+
+	log.Printf("num audio devices: %d", numDevices)
+
+	for i := 0; i < numDevices; i++ {
+		name := sdl.GetAudioDeviceName(i, true)
+
+		log.Printf("device %d: %s\n", i, name)
+	}
+
+	// Specify the configuration for our default recording device
+	spec := sdl.AudioSpec{
+		Freq:     DefaultFrequency,
+		Format:   DefaultFormat,
+		Channels: DefaultChannels,
+		Samples:  DefaultSamples,
+		Callback: sdl.AudioCallback(C.OnAudio),
+	}
+
+	// Open default recording device
+	defaultRecordingDeviceName := sdl.GetAudioDeviceName(1, true)
+	if dev, err = sdl.OpenAudioDevice(defaultRecordingDeviceName, true, &spec, nil, 0); err != nil {
 		return err
 	}
+	defer sdl.CloseAudioDevice(dev)
 
-	for idx, device := range devices {
-		if device.MaxInputChannels > 0 {
-			log.Printf("device %d: %+v\n", idx, device.Name)
-		}
-	}
-
-	selectedDevice, err := portaudio.DefaultInputDevice()
-	if err != nil {
-		return err
-	}
-
-	log.Printf("default device: %+v\n", selectedDevice.Name)
-
-	if v.deviceID != "" {
-		deviceID, convErr := strconv.Atoi(v.deviceID)
-		if convErr != nil {
-			return convErr
-		}
-
-		if deviceID >= len(devices) {
-			return fmt.Errorf("invalid device id")
-		}
-
-		selectedDevice = devices[deviceID]
-	}
-
-	log.Printf("chosen device: %+v\n", selectedDevice.Name)
-
-	log.Printf("sample rate: %d\n", selectedDevice.DefaultSampleRate)
-
-	p := portaudio.LowLatencyParameters(selectedDevice, nil)
-	p.Input.Channels = 1
-	p.Output.Channels = 0
-	p.SampleRate = 16000
-	p.FramesPerBuffer = len(v.inBuffer)
-
-	stream, err := portaudio.OpenStream(p, v.inBuffer)
-	if err != nil {
-		return err
-	}
-
-	v.stream = stream
-
-	err = stream.Start()
-	if err != nil {
-		return err
-	}
-
-	defer stream.Stop()
-
-	defer stream.Close()
+	v.audioDeviceID = dev
 
 	log.Printf("starting to listen\n")
 
 	for {
+		if v.exitGracefully {
+			log.Printf("exiting gracefully\n")
+
+			return nil
+		}
+
 		if v.triggeredAction == ListenActionWake {
 			err = v.listenForWakeLoop()
 			if err != nil {
@@ -165,9 +184,17 @@ func (v *voiceImpl) ListenForCommand() {
 
 func (v *voiceImpl) listenLoop() error {
 	for {
+		if v.exitGracefully {
+			return nil
+		}
+
 		waveBuffer, err := v.listenIntoBuffer(quietTimePeriod, 0)
 		if err != nil {
 			log.Fatalf("error listening: %v", err)
+		}
+
+		if waveBuffer.NumFrames() == 0 {
+			continue
 		}
 
 		segments, err := v.sttEngine.Process(waveBuffer)
@@ -191,9 +218,17 @@ func (v *voiceImpl) listenLoop() error {
 
 func (v *voiceImpl) listenForWakeLoop() error {
 	for {
+		if v.exitGracefully {
+			return nil
+		}
+
 		waveBuffer, err := v.listenIntoBuffer(quietTimePeriod, time.Millisecond*500)
 		if err != nil {
 			log.Fatalf("error listening: %v", err)
+		}
+
+		if waveBuffer.NumFrames() == 0 {
+			continue
 		}
 
 		segments, err := v.sttEngine.Process(waveBuffer)
@@ -226,30 +261,6 @@ func (v *voiceImpl) listenForWakeLoop() error {
 	}
 }
 
-func (v *voiceImpl) initAudio() error {
-	if !v.audioRunning {
-		err := portaudio.Initialize()
-		if err != nil {
-			log.Printf("error initializing audio: %v", err)
-
-			return err
-		}
-
-		v.audioRunning = true
-	}
-
-	return nil
-}
-
-func (v *voiceImpl) freeAudio() {
-	if v.audioRunning {
-		err := portaudio.Terminate()
-		if err != nil {
-			log.Printf("Error while freeing audio: %v", err)
-		}
-	}
-}
-
 func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration, maxTime time.Duration) (audio.Buffer, error) {
 	var (
 		heardSomething bool
@@ -266,8 +277,21 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration, maxTime time.Durat
 
 	var startTime time.Time
 
+	// Start recording audio
+	sdl.PauseAudioDevice(v.audioDeviceID, false)
+
+	defer sdl.PauseAudioDevice(v.audioDeviceID, true)
+
+	// Listen to OS signals
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
 	for {
 		if v.interrupt {
+			sdl.PauseAudioDevice(v.audioDeviceID, true)
+
+			log.Printf("interrupted\n")
+
 			v.interrupt = false
 
 			// interrupt the current listening loop, return empty buffer
@@ -279,11 +303,13 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration, maxTime time.Durat
 				Data:           []int{},
 				SourceBitDepth: 16,
 			}, nil
-		}
-
-		err := v.stream.Read()
-		if err != nil {
-			return nil, err
+		} else {
+			select {
+			case <-c:
+				v.interrupt = true
+				v.exitGracefully = true
+			case v.inBuffer = <-audioC:
+			}
 		}
 
 		// keep a buffer of the first bit of audio before detection

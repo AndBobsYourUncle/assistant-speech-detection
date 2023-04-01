@@ -8,3 +8,5 @@ require (
 	github.com/gordonklaus/portaudio v0.0.0-20221027163845-7c3b689db3cc
 	github.com/mjibson/go-dsp v0.0.0-20180508042940-11479a337f12
 )
+
+require github.com/veandco/go-sdl2 v0.4.33 // indirect
