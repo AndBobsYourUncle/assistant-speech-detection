@@ -17,6 +17,9 @@ RUN apt-get update && \
     update-ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
+RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/local.conf
+RUN ldconfig
+
 WORKDIR /tmp
 
 RUN git clone https://github.com/ggerganov/whisper.cpp && \
