@@ -39,7 +39,7 @@ func main() {
 		log.Fatalf("error with speech_extraction.New: %v", err)
 	}
 
-	err = detect.Listen()
+	err = detect.ListenLoop()
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
