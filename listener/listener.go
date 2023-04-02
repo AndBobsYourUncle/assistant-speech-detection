@@ -7,9 +7,11 @@ void OnAudio(void *userdata, Uint8 *stream, int length);
 import "C"
 
 import (
+	"assistant-speech-detection/clients/ai_bot"
 	"assistant-speech-detection/listener/voice_activity_detection"
 	"assistant-speech-detection/ring_buffer"
 	"assistant-speech-detection/speech_to_text"
+	"context"
 	"fmt"
 	"github.com/go-audio/audio"
 	"github.com/veandco/go-sdl2/sdl"
@@ -64,18 +66,19 @@ func OnAudio(userdata unsafe.Pointer, _stream *C.Uint8, _length C.int) {
 
 type voiceImpl struct {
 	deviceID        string
-	audioRunning    bool
 	sttEngine       speech_to_text.Interface
 	triggeredAction ListenAction
 	interrupt       bool
 	inBuffer        []int16
 	audioDeviceID   sdl.AudioDeviceID
 	exitGracefully  bool
+	aiBotClient     ai_bot.AIBotAPI
 }
 
 type Config struct {
-	DeviceID  string
-	STTEngine speech_to_text.Interface
+	DeviceID    string
+	STTEngine   speech_to_text.Interface
+	AIBotClient ai_bot.AIBotAPI
 }
 
 func New(cfg *Config) (Interface, error) {
@@ -87,11 +90,16 @@ func New(cfg *Config) (Interface, error) {
 		return nil, fmt.Errorf("sttEngine is nil")
 	}
 
+	if cfg.AIBotClient == nil {
+		return nil, fmt.Errorf("aiBotClient is nil")
+	}
+
 	return &voiceImpl{
 		deviceID:        cfg.DeviceID,
 		sttEngine:       cfg.STTEngine,
 		triggeredAction: ListenActionWake,
 		inBuffer:        make([]int16, defaultSamples),
+		aiBotClient:     cfg.AIBotClient,
 	}, nil
 }
 
@@ -211,15 +219,29 @@ func (v *voiceImpl) listenLoop() error {
 			return err
 		}
 
+		fullCommand := ""
+
 		for _, segment := range segments {
 			log.Printf("[%6s->%6s] %s\n",
 				segment.Start.Truncate(time.Millisecond), segment.End.Truncate(time.Millisecond), segment.Text)
 
-			v.triggeredAction = ListenActionWake
-			log.Printf("waiting for wake\n")
-
-			return nil
+			fullCommand += segment.Text + " "
 		}
+
+		v.triggeredAction = ListenActionWake
+		log.Printf("waiting for wake\n")
+
+		if fullCommand != "" {
+			log.Printf("sending command to bot: %s\n", fullCommand)
+
+			resp, sendErr := v.aiBotClient.SendPrompt(context.Background(), fullCommand)
+			if sendErr != nil {
+				log.Printf("error sending command to bot: %v", sendErr)
+			}
+
+			log.Printf("bot response: %s\n", resp)
+		}
+		return nil
 	}
 }
 
