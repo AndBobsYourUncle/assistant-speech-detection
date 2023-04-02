@@ -1,8 +1,9 @@
 package voice_activity_detection
 
 import (
-	"github.com/mjibson/go-dsp/fft"
 	"math"
+
+	"github.com/mjibson/go-dsp/fft"
 )
 
 type vadImpl struct {

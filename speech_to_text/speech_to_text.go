@@ -2,9 +2,10 @@ package speech_to_text
 
 import (
 	"fmt"
+	"io"
+
 	"github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 	"github.com/go-audio/audio"
-	"io"
 )
 
 type sttImpl struct {

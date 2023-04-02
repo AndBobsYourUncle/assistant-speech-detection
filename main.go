@@ -5,8 +5,9 @@ import (
 	"assistant-speech-detection/listener"
 	"assistant-speech-detection/speech_to_text"
 	"flag"
-	"github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 	"log"
+
+	"github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
 func main() {

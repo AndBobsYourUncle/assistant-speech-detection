@@ -13,8 +13,6 @@ import (
 	"assistant-speech-detection/speech_to_text"
 	"context"
 	"fmt"
-	"github.com/go-audio/audio"
-	"github.com/veandco/go-sdl2/sdl"
 	"log"
 	"os"
 	"os/signal"
@@ -24,6 +22,9 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"github.com/go-audio/audio"
+	"github.com/veandco/go-sdl2/sdl"
 )
 
 const (
@@ -198,6 +199,8 @@ func (v *voiceImpl) ListenForCommand() {
 }
 
 func (v *voiceImpl) listenLoop() error {
+	log.Printf("expecting a command\n")
+
 	for {
 		if v.exitGracefully {
 			return nil
@@ -229,7 +232,6 @@ func (v *voiceImpl) listenLoop() error {
 		}
 
 		v.triggeredAction = ListenActionWake
-		log.Printf("waiting for wake\n")
 
 		if fullCommand != "" {
 			log.Printf("sending command to bot: %s\n", fullCommand)
@@ -241,11 +243,14 @@ func (v *voiceImpl) listenLoop() error {
 
 			log.Printf("bot response: %s\n", resp)
 		}
+
 		return nil
 	}
 }
 
 func (v *voiceImpl) listenForWakeLoop() error {
+	log.Printf("waiting for wake\n")
+
 	for {
 		if v.exitGracefully {
 			return nil
@@ -282,7 +287,6 @@ func (v *voiceImpl) listenForWakeLoop() error {
 				log.Printf("wake word detected: %s\n", segment.Text)
 
 				v.triggeredAction = ListenActionCommand
-				log.Printf("expecting a command\n")
 
 				return nil
 			}
