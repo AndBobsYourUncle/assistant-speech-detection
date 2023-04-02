@@ -295,8 +295,6 @@ func (v *voiceImpl) listenIntoBuffer(quietTime time.Duration, maxTime time.Durat
 
 	for {
 		if v.interrupt {
-			sdl.PauseAudioDevice(v.audioDeviceID, true)
-
 			log.Printf("interrupted\n")
 
 			v.interrupt = false
